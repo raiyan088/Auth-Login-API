@@ -33,7 +33,7 @@ function decrypt(text) {
 }
 
 app.post('/login', async (req, res) => {
-    const { email, password, token } = req.body
+    let { email, password, token } = req.body
 
     if (!email || !password || !token) {
         return res.json({ status: 'FIELD_EMPTY' })
@@ -118,7 +118,7 @@ app.post('/auth', async (req, res) => {
 })
 
 app.post('/reset', async (req, res) => {
-    const { email, token } = req.body
+    let { email, token } = req.body
 
     if (!email || !token) {
         return res.json({ status: 'FIELD_EMPTY' })
@@ -150,13 +150,13 @@ app.post('/verification', async (req, res) => {
 
 
 app.post('/sign_up', async (req, res) => {
-    const { email, password, name, bus, token } = req.body
+    let { email, password, name, bus, token } = req.body
 
     if (!email || !password || !name || !bus || !token) {
         return res.json({ status: 'FIELD_EMPTY' })
     }
 
-    if (!email.includes('@') || email.indexOf('@') > email.lastIndexOf('.')) {
+    if (!email.includes('@') || email.lastIndexOf('@') > email.lastIndexOf('.')) {
         return res.json({ status: 'WRONG_EMAIL' })
     }
 
@@ -222,8 +222,8 @@ app.post('/sign_up', async (req, res) => {
 })
 
 async function authAccess(req, resend) {
-    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
-    const { accessToken } = req.body
+    let authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    let { accessToken } = req.body
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return { status: 'NO_HEADER_TOKEN' }
