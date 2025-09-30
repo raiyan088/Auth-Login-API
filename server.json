@@ -11,6 +11,9 @@ const DATABASE = process.env.DATABASE
 const API_KEY = process.env.API_KEY
 const CERT = process.env.CERT
 const GMP_ID = process.env.GMP_ID
+const PROJECT_ID = process.env.PROJECT_ID
+const R_API_KEY = process.env.R_API_KEY
+const SITE_KEY = process.env.SITE_KEY
 const CLIENT = process.env.CLIENT
 const PORT = process.env.PORT || 3000
 const VERSION = 'Android/Fallback/X24000001/FirebaseCore-Android'
@@ -30,9 +33,9 @@ function decrypt(text) {
 }
 
 app.post('/login', async (req, res) => {
-    const { email, password } = req.body
+    const { email, password, token } = req.body
 
-    if (!email || !password) {
+    if (!email || !password || !token) {
         return res.json({ status: 'FIELD_EMPTY' })
     }
 
@@ -48,6 +51,12 @@ app.post('/login', async (req, res) => {
 
     if (password.length < 6) {
         return res.json({ status: 'PASSWORD_LENGTH_SHORT' })
+    }
+
+    let validToken = await verifyToken(token, 'login_session')
+
+    if (!validToken) {
+        return res.json({ status: 'ERROR' })
     }
 
     let result = 'LOGIN_FAILED'
@@ -109,14 +118,20 @@ app.post('/auth', async (req, res) => {
 })
 
 app.post('/reset', async (req, res) => {
-    const { email } = req.body
+    const { email, token } = req.body
 
-    if (!email) {
+    if (!email || !token) {
         return res.json({ status: 'FIELD_EMPTY' })
     }
 
     if (!email.includes('@') || email.indexOf('@') > email.lastIndexOf('.')) {
         return res.json({ status: 'WRONG_EMAIL' })
+    }
+
+    let validToken = await verifyToken(token, 'reset_session')
+
+    if (!validToken) {
+        return res.json({ status: 'ERROR' })
     }
 
     try {
@@ -135,9 +150,9 @@ app.post('/verification', async (req, res) => {
 
 
 app.post('/sign_up', async (req, res) => {
-    const { email, password, name, bus } = req.body
+    const { email, password, name, bus, token } = req.body
 
-    if (!email || !password || !name || !bus) {
+    if (!email || !password || !name || !bus || !token) {
         return res.json({ status: 'FIELD_EMPTY' })
     }
 
@@ -153,6 +168,12 @@ app.post('/sign_up', async (req, res) => {
 
     if (password.length < 6) {
         return res.json({ status: 'PASSWORD_LENGTH_SHORT' })
+    }
+
+    let validToken = await verifyToken(token, 'sign_up_session')
+
+    if (!validToken) {
+        return res.json({ status: 'ERROR' })
     }
 
     let result = 'SING_UP_FAILED'
@@ -275,6 +296,27 @@ async function getAccessToken(token, accessToken) {
         return response.data.access_token
     } catch (error) {
         return accessToken
+    }
+}
+
+async function verifyToken(token, action) {
+    try {
+        const response = await axios.post('https://recaptchaenterprise.googleapis.com/v1/projects/'+PROJECT_ID+'/assessments?key='+R_API_KEY, { event: { token: token, siteKey: SITE_KEY, expectedAction: action, } }, {
+            headers: { 'Content-Type': 'application/json' }
+        })
+
+        let assessment = response.data
+
+        if (!assessment.tokenProperties.valid) {
+            return false
+        }
+        if (assessment.tokenProperties.action !== action) {
+            return false
+        }
+
+        return assessment.riskAnalysis.score >= 0.5
+    } catch (error) {
+        return false
     }
 }
 
