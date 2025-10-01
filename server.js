@@ -8,6 +8,7 @@ const app = express()
 app.use(bodyParser.json())
 
 const DATABASE = process.env.DATABASE
+const SIGNATURE = process.env.SIGNATURE
 const API_KEY = process.env.API_KEY
 const CERT = process.env.CERT
 const GMP_ID = process.env.GMP_ID
@@ -53,7 +54,7 @@ app.post('/login', async (req, res) => {
         return res.json({ status: 'PASSWORD_LENGTH_SHORT' })
     }
 
-    let validToken = await verifyToken(token, 'login_session')
+    let validToken = await verifyToken(decrypt(token))
 
     if (!validToken) {
         return res.json({ status: 'ERROR' })
@@ -128,7 +129,7 @@ app.post('/reset', async (req, res) => {
         return res.json({ status: 'WRONG_EMAIL' })
     }
 
-    let validToken = await verifyToken(token, 'reset_session')
+    let validToken = await verifyToken(decrypt(token))
 
     if (!validToken) {
         return res.json({ status: 'ERROR' })
@@ -170,7 +171,7 @@ app.post('/sign_up', async (req, res) => {
         return res.json({ status: 'PASSWORD_LENGTH_SHORT' })
     }
 
-    let validToken = await verifyToken(token, 'sign_up_session')
+    let validToken = await verifyToken(decrypt(token))
 
     if (!validToken) {
         return res.json({ status: 'ERROR' })
@@ -223,16 +224,26 @@ app.post('/sign_up', async (req, res) => {
 
 async function authAccess(req, resend) {
     let authHeader = req.headers['authorization'] || req.headers['Authorization'];
-    let { accessToken } = req.body
+    let { accessToken, token } = req.body
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return { status: 'NO_HEADER_TOKEN' }
     }
 
-    const token = authHeader.split(' ')[1]
+    let refreshToken = authHeader.split(' ')[1]
 
     if (!accessToken) {
         return { status: 'NO_ACCESS_TOKEN' }
+    }
+
+    if (!token) {
+        return res.json({ status: 'ERROR' })
+    }
+    
+    let validToken = await verifyToken(decrypt(token))
+
+    if (!validToken) {
+        return res.json({ status: 'ERROR' })
     }
 
     let result = 'ERROR'
@@ -249,7 +260,7 @@ async function authAccess(req, resend) {
                 
                 try {
                     if (Math.floor((Date.now() - new Date(users[0].lastRefreshAt).getTime()) / (1000 * 60)) > 45) {
-                        letestToken = await getAccessToken(token, accessToken)
+                        letestToken = await getAccessToken(refreshToken, accessToken)
                         accessToken = letestToken
                     }
                 } catch (error) {}
@@ -299,25 +310,22 @@ async function getAccessToken(token, accessToken) {
     }
 }
 
-async function verifyToken(token, action) {
+async function verifyToken(token) {
     try {
-        const response = await axios.post('https://recaptchaenterprise.googleapis.com/v1/projects/'+PROJECT_ID+'/assessments?key='+R_API_KEY, { event: { token: token, siteKey: SITE_KEY, expectedAction: action, } }, {
-            headers: { 'Content-Type': 'application/json' }
-        })
+        if (!token) return false
 
-        let assessment = response.data
-
-        if (!assessment.tokenProperties.valid) {
-            return false
+        let split = token.split('.')
+        if (split.length == 3) {
+            if (split[1] !== SIGNATURE) return false
+            let timestamp = parseInt(split[2], 10)
+            let now = Date.now()
+            let diff = now - timestamp
+            if (diff > 2 * 60 * 1000 || diff < 0) return false
+            return true
         }
-        if (assessment.tokenProperties.action !== action) {
-            return false
-        }
+    } catch (error) {}
 
-        return assessment.riskAnalysis.score >= 0.5
-    } catch (error) {
-        return false
-    }
+    return false
 }
 
 function getHeaders() {
