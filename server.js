@@ -119,10 +119,6 @@ app.post('/login', async (req, res) => {
     return res.json({ status: result })
 })
 
-app.post('/auth', async (req, res) => {
-    let reqult = await authAccess(req, false)
-    return res.json(reqult)
-})
 
 app.post('/reset', async (req, res) => {
     let { email, token } = req.body
@@ -151,8 +147,85 @@ app.post('/reset', async (req, res) => {
 
 
 app.post('/verification', async (req, res) => {
-    let reqult = await authAccess(req, true)
-    return res.json(reqult)
+    let authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    let { accessToken, token } = req.body
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.json({ status: 'NO_HEADER_TOKEN' })
+    }
+
+    let refreshToken = authHeader.split(' ')[1]
+
+    if (!token) {
+        return res.json({ status: 'ERROR' })
+    }
+    
+    let validToken = await verifyToken(decrypt(token))
+
+    if (!validToken) {
+        return res.json({ status: 'ERROR' })
+    }
+
+    if (!accessToken) {
+        accessToken = await getAccessToken(refreshToken, null)
+    }
+
+    if (!accessToken) {
+        return res.json({ status: 'NO_ACCESS_TOKEN' })
+    }
+
+    let result = 'ERROR'
+    let letestToken = null
+
+    for (let i = 0; i < 2; i++) {
+        try {
+            let response = await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key='+API_KEY, { 'idToken': accessToken }, { headers: getHeaders() })
+
+            if (response.data.kind.includes('GetAccountInfoResponse')) {
+                let users = response.data.users
+                let emailVerified = users[0].emailVerified
+                let localId = users[0].localId
+                
+                try {
+                    if (Math.floor((Date.now() - new Date(users[0].lastRefreshAt).getTime()) / (1000 * 60)) > 45) {
+                        letestToken = await getAccessToken(refreshToken, accessToken)
+                        accessToken = letestToken
+                    }
+                } catch (error) {}
+
+                try {
+                    await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key='+API_KEY, { 'requestType': 4, 'idToken': accessToken, 'clientType': 'CLIENT_TYPE_ANDROID' }, { headers: getHeaders() })
+                } catch (error) {}
+                
+
+                return res.json({
+                    status: 'SUCCESS',
+                    id: localId,
+                    verified:emailVerified,
+                    passwordUpdatedAt: users[0].passwordUpdatedAt, 
+                    lastLoginAt: users[0].lastLoginAt,
+                    createdAt: users[0].createdAt,
+                    letestToken: letestToken
+                })
+            }
+        } catch (error) {
+            result = 'ERROR'
+            try {
+                if (error.response && error.response.data) {
+                    let msg = error.response.data.error.message
+                    if (msg == 'INVALID_ID_TOKEN' || msg == 'TOKEN_EXPIRED') {
+                        letestToken = await getAccessToken(token, accessToken)
+                        accessToken = letestToken
+                        continue
+                    }
+                }
+            } catch (error) {}
+        }
+
+        break
+    }
+
+    return res.json({ status: result })
 })
 
 
@@ -229,88 +302,6 @@ app.post('/sign_up', async (req, res) => {
     return res.json({ status: result })
 })
 
-async function authAccess(req, resend) {
-    let authHeader = req.headers['authorization'] || req.headers['Authorization'];
-    let { accessToken, token } = req.body
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return { status: 'NO_HEADER_TOKEN' }
-    }
-
-    let refreshToken = authHeader.split(' ')[1]
-
-    if (!token) {
-        return res.json({ status: 'ERROR' })
-    }
-    
-    let validToken = await verifyToken(decrypt(token))
-
-    if (!validToken) {
-        return res.json({ status: 'ERROR' })
-    }
-
-    if (!accessToken) {
-        accessToken = await getAccessToken(refreshToken, null)
-    }
-
-    if (!accessToken) {
-        return { status: 'NO_ACCESS_TOKEN' }
-    }
-
-    let result = 'ERROR'
-    let letestToken = null
-
-    for (let i = 0; i < 2; i++) {
-        try {
-            let response = await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key='+API_KEY, { 'idToken': accessToken }, { headers: getHeaders() })
-
-            if (response.data.kind.includes('GetAccountInfoResponse')) {
-                let users = response.data.users
-                let emailVerified = users[0].emailVerified
-                let localId = users[0].localId
-                
-                try {
-                    if (Math.floor((Date.now() - new Date(users[0].lastRefreshAt).getTime()) / (1000 * 60)) > 45) {
-                        letestToken = await getAccessToken(refreshToken, accessToken)
-                        accessToken = letestToken
-                    }
-                } catch (error) {}
-
-                if (resend) {
-                    try {
-                        await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key='+API_KEY, { 'requestType': 4, 'idToken': accessToken, 'clientType': 'CLIENT_TYPE_ANDROID' }, { headers: getHeaders() })
-                    } catch (error) {}
-                }
-
-                return {
-                    status: 'SUCCESS',
-                    id: localId,
-                    verified:emailVerified,
-                    passwordUpdatedAt: users[0].passwordUpdatedAt, 
-                    lastLoginAt: users[0].lastLoginAt,
-                    createdAt: users[0].createdAt,
-                    letestToken: letestToken
-                }
-            }
-        } catch (error) {
-            result = 'ERROR'
-            try {
-                if (error.response && error.response.data) {
-                    let msg = error.response.data.error.message
-                    if (msg == 'INVALID_ID_TOKEN' || msg == 'TOKEN_EXPIRED') {
-                        letestToken = await getAccessToken(token, accessToken)
-                        accessToken = letestToken
-                        continue
-                    }
-                }
-            } catch (error) {}
-        }
-
-        break
-    }
-
-    return { status: result }
-}
 
 async function getAccessToken(token, accessToken) {
     try {
