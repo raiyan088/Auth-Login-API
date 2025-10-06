@@ -175,7 +175,7 @@ app.post('/verification', async (req, res) => {
     }
 
     let result = 'ERROR'
-    let letestToken = null
+    let latestToken = null
 
     for (let i = 0; i < 2; i++) {
         try {
@@ -188,8 +188,8 @@ app.post('/verification', async (req, res) => {
                 
                 try {
                     if (Math.floor((Date.now() - new Date(users[0].lastRefreshAt).getTime()) / (1000 * 60)) > 45) {
-                        letestToken = await getAccessToken(refreshToken, accessToken)
-                        accessToken = letestToken
+                        latestToken = await getAccessToken(refreshToken, accessToken)
+                        accessToken = latestToken
                     }
                 } catch (error) {}
 
@@ -205,7 +205,7 @@ app.post('/verification', async (req, res) => {
                     passwordUpdatedAt: users[0].passwordUpdatedAt, 
                     lastLoginAt: users[0].lastLoginAt,
                     createdAt: users[0].createdAt,
-                    letestToken: letestToken
+                    latestToken: latestToken
                 })
             }
         } catch (error) {
@@ -214,8 +214,8 @@ app.post('/verification', async (req, res) => {
                 if (error.response && error.response.data) {
                     let msg = error.response.data.error.message
                     if (msg == 'INVALID_ID_TOKEN' || msg == 'TOKEN_EXPIRED') {
-                        letestToken = await getAccessToken(token, accessToken)
-                        accessToken = letestToken
+                        latestToken = await getAccessToken(token, accessToken)
+                        accessToken = latestToken
                         continue
                     }
                 }
