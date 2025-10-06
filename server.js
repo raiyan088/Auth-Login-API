@@ -12,9 +12,6 @@ const SIGNATURE = process.env.SIGNATURE
 const API_KEY = process.env.API_KEY
 const CERT = process.env.CERT
 const GMP_ID = process.env.GMP_ID
-const PROJECT_ID = process.env.PROJECT_ID
-const R_API_KEY = process.env.R_API_KEY
-const SITE_KEY = process.env.SITE_KEY
 const CLIENT = process.env.CLIENT
 const PORT = process.env.PORT || 3000
 const VERSION = 'Android/Fallback/X24000001/FirebaseCore-Android'
@@ -232,10 +229,6 @@ async function authAccess(req, resend) {
 
     let refreshToken = authHeader.split(' ')[1]
 
-    if (!accessToken) {
-        return { status: 'NO_ACCESS_TOKEN' }
-    }
-
     if (!token) {
         return res.json({ status: 'ERROR' })
     }
@@ -244,6 +237,14 @@ async function authAccess(req, resend) {
 
     if (!validToken) {
         return res.json({ status: 'ERROR' })
+    }
+
+    if (!accessToken) {
+        accessToken = await getAccessToken(refreshToken, null)
+    }
+
+    if (!accessToken) {
+        return { status: 'NO_ACCESS_TOKEN' }
     }
 
     let result = 'ERROR'
