@@ -20,6 +20,14 @@ const PACKAGE = 'com.rr.bubtbustracker'
 let KEY = Buffer.from(process.env.AES_KEY.split(',').map(n => parseInt(n.trim())))
 let IV = Buffer.from(process.env.AES_IV.split(',').map(n => parseInt(n.trim())))
 
+function encrypt(text) {
+    try {
+        let cipher = crypto.createCipheriv('aes-192-cbc', KEY, IV)
+        return cipher.update(text, 'utf8', 'base64') + cipher.final('base64')
+    } catch (e) {
+        return ''
+    }
+}
 
 function decrypt(text) {
     try {
@@ -88,7 +96,8 @@ app.post('/login', async (req, res) => {
                             lastLoginAt: users[0].lastLoginAt,
                             createdAt: users[0].createdAt,
                             refreshToken: refreshToken,
-                            accessToken: idToken
+                            accessToken: idToken,
+                            requestToken: encrypt(API_KEY+'|'+CERT+'|'+GMP_ID+'|'+CLIENT)
                         })
                     }
                 }
@@ -190,7 +199,7 @@ app.post('/sign_up', async (req, res) => {
             } catch (error) {}
 
             await axios.patch(DATABASE+'user/'+localId+'.json', { token: refreshToken, rule: 'STUDENT', name, bus }, {
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json' 
                 }
             })
@@ -199,7 +208,8 @@ app.post('/sign_up', async (req, res) => {
                 status: 'SUCCESS',
                 id: localId,
                 refreshToken: refreshToken,
-                accessToken: idToken
+                accessToken: idToken,
+                requestToken: encrypt(API_KEY+'|'+CERT+'|'+GMP_ID+'|'+CLIENT)
             })
         }
     } catch (error) {
