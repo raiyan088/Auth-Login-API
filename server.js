@@ -166,8 +166,11 @@ app.post('/verification', async (req, res) => {
         return res.json({ status: 'ERROR' })
     }
 
+    let latestToken = null
+    
     if (!accessToken) {
-        accessToken = await getAccessToken(refreshToken, null)
+        latestToken = await getAccessToken(refreshToken, null)
+        accessToken = latestToken
     }
 
     if (!accessToken) {
@@ -175,12 +178,11 @@ app.post('/verification', async (req, res) => {
     }
 
     let result = 'ERROR'
-    let latestToken = null
-
+    
     for (let i = 0; i < 2; i++) {
         try {
             let response = await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key='+API_KEY, { 'idToken': accessToken }, { headers: getHeaders() })
-
+            
             if (response.data.kind.includes('GetAccountInfoResponse')) {
                 let users = response.data.users
                 let emailVerified = users[0].emailVerified
@@ -197,7 +199,6 @@ app.post('/verification', async (req, res) => {
                     await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key='+API_KEY, { 'requestType': 4, 'idToken': accessToken, 'clientType': 'CLIENT_TYPE_ANDROID' }, { headers: getHeaders() })
                 } catch (error) {}
                 
-
                 return res.json({
                     status: 'SUCCESS',
                     id: localId,
@@ -213,11 +214,12 @@ app.post('/verification', async (req, res) => {
             try {
                 if (error.response && error.response.data) {
                     let msg = error.response.data.error.message
+                    
                     if (msg == 'INVALID_ID_TOKEN' || msg == 'TOKEN_EXPIRED') {
                         latestToken = await getAccessToken(token, accessToken)
                         accessToken = latestToken
                         continue
-                    }
+                    } 
                 }
             } catch (error) {}
         }
@@ -313,6 +315,7 @@ async function getAccessToken(token, accessToken) {
 }
 
 async function verifyToken(token) {
+    
     try {
         if (!token) return false
 
@@ -322,7 +325,8 @@ async function verifyToken(token) {
             let timestamp = parseInt(split[2], 10)
             let now = Date.now()
             let diff = now - timestamp
-            if (diff > 2 * 60 * 1000 || diff < 0) return false
+            
+            if (diff > 120000 || diff < -60000) return false
             return true
         }
     } catch (error) {}
