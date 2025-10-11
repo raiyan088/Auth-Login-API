@@ -156,6 +156,10 @@ app.post('/verification', async (req, res) => {
 
     let refreshToken = authHeader.split(' ')[1]
 
+    if (!refreshToken || refreshToken.length < 10) {
+        return res.json({ status: 'NO_HEADER_TOKEN' })
+    }
+
     if (!token) {
         return res.json({ status: 'ERROR' })
     }
@@ -216,10 +220,10 @@ app.post('/verification', async (req, res) => {
                     let msg = error.response.data.error.message
                     
                     if (msg == 'INVALID_ID_TOKEN' || msg == 'TOKEN_EXPIRED') {
-                        latestToken = await getAccessToken(token, accessToken)
+                        latestToken = await getAccessToken(refreshToken, accessToken)
                         accessToken = latestToken
                         continue
-                    } 
+                    }
                 }
             } catch (error) {}
         }
@@ -347,6 +351,5 @@ function getHeaders() {
         'Accept-Encoding': 'gzip, deflate'
     }
 }
-
 
 app.listen(PORT, () => console.log(`Server running PORT: ${PORT}`))
