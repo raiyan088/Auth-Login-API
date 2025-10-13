@@ -139,7 +139,7 @@ app.post('/login', async (req, res) => {
                     let emailVerified = users[0].emailVerified
                     let localId = users[0].localId
                     
-                    response = await axios.get(DATABASE+'user/'+localId+'.json')
+                    response = await axios.get(DATABASE_URL+'/'+DATA_PATH+'/'+localId+'.json')
                     let data = response.data
                     if (data) {
                         return res.json({
