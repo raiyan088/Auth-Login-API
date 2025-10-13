@@ -2,12 +2,14 @@ require('dotenv').config()
 const axios = require('axios')
 const crypto = require('crypto')
 const express = require('express')
+const admin = require('firebase-admin')
 const bodyParser = require('body-parser')
 
 const app = express()
 app.use(bodyParser.json())
 
-const DATABASE = process.env.DATABASE
+const DATABASE_URL = process.env.DATABASE_URL
+const DATA_PATH = process.env.DATA_PATH
 const SIGNATURE = process.env.SIGNATURE
 const PROJECT_ID = process.env.PROJECT_ID
 const API_KEY = process.env.API_KEY
@@ -18,8 +20,30 @@ const PORT = process.env.PORT || 3000
 const VERSION = 'Android/Fallback/X24000001/FirebaseCore-Android'
 const PACKAGE = 'com.rr.bubtbustracker'
 
+const serviceAccount = {
+  type: process.env.TYPE,
+  project_id: process.env.PROJECT_ID,
+  private_key_id: process.env.PRIVATE_KEY_ID,
+  private_key: process.env.PRIVATE_KEY.replace(/\\n/g, '\n'),
+  client_email: process.env.CLIENT_EMAIL,
+  client_id: process.env.CLIENT_ID,
+  auth_uri: process.env.AUTH_URI,
+  token_uri: process.env.TOKEN_URI,
+  auth_provider_x509_cert_url: process.env.AUTH_PROVIDER_X509_CERT_URL,
+  client_x509_cert_url: process.env.CLIENT_X509_CERT_URL
+}
+
 let KEY = Buffer.from(process.env.AES_KEY.split(',').map(n => parseInt(n.trim())))
 let IV = Buffer.from(process.env.AES_IV.split(',').map(n => parseInt(n.trim())))
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: DATABASE_URL
+})
+
+const database = admin.database()
+const messaging = admin.messaging()
+
 
 function encrypt(text) {
     try {
@@ -38,6 +62,31 @@ function decrypt(text) {
         return null
     }
 }
+
+app.post('/notification', async (req, res) => {
+    try {
+        const { title, body, data, token, bus } = req.body
+
+        if (!title || !body || !token || !bus) {
+            return res.json({ status: 'FIELD_EMPTY' })
+        }
+
+        let validToken = await verifyToken(decrypt(token))
+
+        if (!validToken) {
+            return res.json({ status: 'ERROR' })
+        }
+        
+        await messaging.send({
+            notification: { title, body },
+            data: data || {},
+            topic: bus
+        })
+        return res.json({ status: 'SUCCESS' })
+    } catch (err) {
+        return res.json({ status: 'ERROR' })
+    }
+})
 
 app.post('/login', async (req, res) => {
     let { email, password, token } = req.body
@@ -278,11 +327,7 @@ app.post('/sign_up', async (req, res) => {
                 await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key='+API_KEY, { 'requestType': 4, 'idToken': idToken, 'clientType': 'CLIENT_TYPE_ANDROID' }, { headers: getHeaders() })
             } catch (error) {}
 
-            await axios.patch(DATABASE+'user/'+localId+'.json', { token: refreshToken, rule: 'STUDENT', name, bus }, {
-                headers: {
-                    'Content-Type': 'application/json' 
-                }
-            })
+            await database.ref(DATA_PATH).child(localId).update({ rule: 'STUDENT', name, bus })
 
             return res.json({
                 status: 'SUCCESS',
@@ -307,6 +352,28 @@ app.post('/sign_up', async (req, res) => {
 
     }
     return res.json({ status: result })
+})
+
+app.post('/bus_change', async (req, res) => {
+    let { id, bus, token } = req.body
+
+    if (!id || !bus || !token) {
+        return res.json({ status: 'FIELD_EMPTY' })
+    }
+
+    let validToken = await verifyToken(decrypt(token))
+
+    if (!validToken) {
+        return res.json({ status: 'ERROR' })
+    }
+
+    try {
+        await database.ref(DATA_PATH).child(id).update({ bus : bus })
+
+        return res.json({ status: 'SUCCESS' })
+    } catch (error) {}
+
+    return res.json({ status: 'ERROR' })
 })
 
 
