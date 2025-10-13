@@ -9,6 +9,7 @@ app.use(bodyParser.json())
 
 const DATABASE = process.env.DATABASE
 const SIGNATURE = process.env.SIGNATURE
+const PROJECT_ID = process.env.PROJECT_ID
 const API_KEY = process.env.API_KEY
 const CERT = process.env.CERT
 const GMP_ID = process.env.GMP_ID
@@ -97,7 +98,7 @@ app.post('/login', async (req, res) => {
                             createdAt: users[0].createdAt,
                             refreshToken: refreshToken,
                             accessToken: idToken,
-                            requestToken: encrypt(API_KEY+'|'+CERT+'|'+GMP_ID+'|'+CLIENT)
+                            requestToken: encrypt(API_KEY+'|'+CERT+'|'+GMP_ID+'|'+CLIENT+'|'+PROJECT_ID)
                         })
                     }
                 }
@@ -288,7 +289,7 @@ app.post('/sign_up', async (req, res) => {
                 id: localId,
                 refreshToken: refreshToken,
                 accessToken: idToken,
-                requestToken: encrypt(API_KEY+'|'+CERT+'|'+GMP_ID+'|'+CLIENT)
+                requestToken: encrypt(API_KEY+'|'+CERT+'|'+GMP_ID+'|'+CLIENT+'|'+PROJECT_ID)
             })
         }
     } catch (error) {
