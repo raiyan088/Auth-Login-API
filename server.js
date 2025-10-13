@@ -1,4 +1,5 @@
 require('dotenv').config()
+const path = require('path')
 const axios = require('axios')
 const crypto = require('crypto')
 const express = require('express')
@@ -7,6 +8,8 @@ const bodyParser = require('body-parser')
 
 const app = express()
 app.use(bodyParser.json())
+app.use(express.static(path.join(__dirname, 'public')))
+
 
 const DATABASE_URL = process.env.DATABASE_URL
 const DATA_PATH = process.env.DATA_PATH
@@ -62,6 +65,10 @@ function decrypt(text) {
         return null
     }
 }
+
+app.get('/', async (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'))
+})
 
 app.post('/notification', async (req, res) => {
     try {
@@ -327,7 +334,7 @@ app.post('/sign_up', async (req, res) => {
                 await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key='+API_KEY, { 'requestType': 4, 'idToken': idToken, 'clientType': 'CLIENT_TYPE_ANDROID' }, { headers: getHeaders() })
             } catch (error) {}
 
-            await database.ref(DATA_PATH).child(localId).update({ rule: 'STUDENT', name, bus })
+            await database.ref(DATA_PATH).child(localId).update({ rule: 'STUDENT', email, name,  bus })
 
             return res.json({
                 status: 'SUCCESS',
