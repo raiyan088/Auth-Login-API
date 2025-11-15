@@ -144,7 +144,7 @@ app.post('/login', async (req, res) => {
                     if (data) {
                         return res.json({
                             status: 'SUCCESS', 
-                            rule: data.rule,
+                            role: data.role,
                             name: data.name,
                             bus: data.bus,
                             id: localId,
@@ -334,7 +334,7 @@ app.post('/sign_up', async (req, res) => {
                 await axios.post('https://www.googleapis.com/identitytoolkit/v3/relyingparty/getOobConfirmationCode?key='+API_KEY, { 'requestType': 4, 'idToken': idToken, 'clientType': 'CLIENT_TYPE_ANDROID' }, { headers: getHeaders() })
             } catch (error) {}
 
-            await database.ref(DATA_PATH).child(localId).update({ rule: 'STUDENT', email, name,  bus })
+            await database.ref(DATA_PATH).child(localId).update({ role: 'STUDENT', email, name,  bus })
 
             return res.json({
                 status: 'SUCCESS',
